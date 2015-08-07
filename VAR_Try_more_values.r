@@ -8,6 +8,8 @@
 #   For each sample, start from different initial estimations,
 #   and find MLE using nlminb (requires package "MASS"?).
 #
+#Note: Before each run, change output file "fileName" 
+#    to save to a different file.
 #############################Edit Notes######################################
 #Date: 2015.08.03
 #Type: Bug detected
@@ -24,11 +26,30 @@
 #   to      b<-cbind(b,gmm(j,g_rho,wdir))
 #   ("i" changed to "j")
 
+#Date: 2015.08.05
+#Type: Automation improvement
+#Description: Automatically set output file name using string manipulation
+#   functions. The function str_c requires loading package "stringr".
+
+#Date: 2015.08.07
+#Type: Comment
+#Description: (Final commit of the VAR model?) The model turns out to be 
+#   identifiable as long as the position of the cities span the 2-D space.
+#   The former problem occurs when d<3 (or when cities are situated on the
+#   same straight line), however, I noticed that the values of
+#   \hat{wdir[1]}^2+\hat{wdir[2]}^2+\hat{wdir[3]}^2
+#   are consistent, and close to the true value.
+
 #############################################################################
 library("MASS", lib.loc="C:/Program Files/R/library")
 #library("MASS", lib.loc="C:/Program Files/[Schoolwork]/R/library")
+#Installing "stringr" 
+# install.packages("stringr")
+#Loading "stringr" 
+library(stringr)
+
 #Vector dimension: number of stations
-d<-2
+d<-4
 #Auto-Regressive degree
 p<-1
 #Total length of time in practice data.
@@ -36,10 +57,24 @@ N<-5000
 #Coordinates of stations
 x<-c(1,0,3,0,1); y<-c(0,1,2,0,2)
 #Write results to this file.
-fileName<-"E:\\R_WorkSpace\\Output_150729.txt"
+#Output file name is based on current date.
+today<-gsub("-","",Sys.Date())
+fileName<-str_c("E:\\R_WorkSpace\\Output_",today,".txt")
+# fileName<-"E:\\R_WorkSpace\\Output_150805.txt"
 logFile<-"E:\\R_WorkSpace\\Log.txt"
 cat("", file=fileName,sep="",append=FALSE)
 cat("", file=logFile,sep="",append=FALSE)
+
+#List of parameter sets to be tested.
+par_list<-list(
+#   c(7,3,5,1)
+  c(0,0,0.5,1)
+  ,c(-0.05,0.03,0.2,0.7)
+  ,c(1,1.5,4,1)
+  ,c(4,5,3,1)
+  ,c(-0.15,0.2,0.5,1.2)
+  )
+# par_list<-list(c(-0.05,0.03,0.2,0.7))
 
 #Matrices
 Mtx0<-matrix(0,nrow=d,ncol=d)
@@ -84,7 +119,7 @@ nLikelihood<-function(par,X) {
       col<-rbind(col,gmm(j-i,g_rho,wdir))
     }
     G<-cbind(G,col)
-    b<-cbind(b,gmm(i,g_rho,wdir))
+    b<-cbind(b,gmm(j,g_rho,wdir))   #Correction(2015.08.05)
   }
   #print(G)
   #print(b)
@@ -92,10 +127,11 @@ nLikelihood<-function(par,X) {
   #Now solve for P: the "stacked" matrix of all Phi's.
   P<-b%*%solve(G)
   #print(P)
-  Phi<-list();
+  #Phi(1), ..., Phi(p) as a list
+  Phi<-list()
   for (i in 1:p) {
-    Phi_i<-P[,((i-1)*d+1):(i*d)]
-    Phi[[i]]<-Phi_i
+    next_Phi<-P[,((i-1)*d+1):(i*d)]
+    Phi[[i]]<-next_Phi
   }
 #   print(Phi)
   
@@ -120,6 +156,7 @@ nLikelihood<-function(par,X) {
   #print(W)
   
   #The covariance matrix G_p:
+  #Note(20150805): G_p is essentially the same as G.
   Gp<-c()
   for (j in 1:p) {
     col<-c()
@@ -142,26 +179,11 @@ nLikelihood<-function(par,X) {
   
   #Likelihood
   #"Le" denotes the exponential part of the likelihood
-  #print(t(XXp))
-  #print(invGp)
   Le<-t(XXp)%*%invGp%*%XXp
-  #   Le<-0
-  #"Lm" denotes the multiplier part of the likelihood
-  Lm_tmp1<-(det(Gp))^(-1/2)
-  Lm_tmp2<-(det(Sigma))^(-(N-p)/2)
-  #   Lm<-Lm_tmp1*Lm_tmp2
-  Lm<-Lm_tmp1
-  #   print("computing Lm")
-  #   print(c(det(Gp),Lm_tmp1,det(Sigma),Lm_tmp2))
-  #   Lm<-(det(Sigma))^(-(N-p)/2)
-#   print("Lm is:")
-#   print(Lm)
   for (t in (p+1):N) {
     Wt<-as.matrix(W[,t-p])
     Le<-Le+t(Wt)%*%InvSigma%*%Wt
   }
-  #L<-exp(-Le/2)*(2*pi)^(-n*d/2)*Lm
-  #   nlogL<-Le/2-log(Lm)
   nlogL<-Le/2+log(det(Gp))/2+log(det(Sigma))*(N-p)/2
 #   print("negative log likelihood:")
 #   print(c(nlogL,Le/2,log(det(Gp))/2,log(det(Sigma))*(N-p)/2),digit=15)
@@ -174,16 +196,6 @@ nLikelihood<-function(par,X) {
   cat(sprintf("%.20f",nlogL), file=logFile,sep="\n",append=TRUE)
   return(nlogL)
 }
-
-
-#List of parameter sets to be tested.
-par_list<-list(
-  c(0,0,0.5,1),
-  c(-0.05,0.03,0.2,0.7),
-  c(1,1.5,4,1),
-  c(4,5,3,1),
-  c(-0.15,0.2,0.5,1.2))
-# par_list<-list(c(-0.05,0.03,0.2,0.7))
 
 est_list<-list()
 
