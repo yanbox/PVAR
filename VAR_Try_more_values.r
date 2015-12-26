@@ -40,8 +40,13 @@
 #   \hat{wdir[1]}^2+\hat{wdir[2]}^2+\hat{wdir[3]}^2
 #   are consistent, and close to the true value.
 
+#Date: 2015.08.09
+#Type: Bug
+#Description: invSigma are misused as InvSigma in some places.
+
 #############################################################################
-library("MASS", lib.loc="C:/Program Files/R/library")
+library(MASS)
+#library("MASS", lib.loc="C:/Program Files/R/library")
 #library("MASS", lib.loc="C:/Program Files/[Schoolwork]/R/library")
 #Installing "stringr" 
 # install.packages("stringr")
@@ -142,7 +147,7 @@ nLikelihood<-function(par,X) {
       Sigma<-Sigma-Phi[[i]]%*%gmm(j-i,g_rho,wdir)%*%t(Phi[[j]])
     }
   }
-  InvSigma<-solve(Sigma)
+  invSigma<-solve(Sigma)
   
   #Series {W_t}
   W<-c()
@@ -182,7 +187,7 @@ nLikelihood<-function(par,X) {
   Le<-t(XXp)%*%invGp%*%XXp
   for (t in (p+1):N) {
     Wt<-as.matrix(W[,t-p])
-    Le<-Le+t(Wt)%*%InvSigma%*%Wt
+    Le<-Le+t(Wt)%*%invSigma%*%Wt
   }
   nlogL<-Le/2+log(det(Gp))/2+log(det(Sigma))*(N-p)/2
 #   print("negative log likelihood:")
